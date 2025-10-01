@@ -65,6 +65,7 @@ let UsersService = class UsersService {
                 email: createUserDto.email,
                 password: hashedPassword,
                 name: createUserDto.name,
+                role: createUserDto.role || 'USER',
             },
         });
         return user;

@@ -6,9 +6,10 @@ import { BadRequestException, Injectable } from '@nestjs/common';
 import { UsersService } from 'src/users/users.service';
 import * as bcrypt from 'bcrypt';
 import { JwtService } from '@nestjs/jwt';
-import { SignInAuthDto, SignUpAuthDto } from './auth.dto';
+import { SignUpAuthDto } from './auth.dto';
 import { Token } from './types/token.types';
 import { PrismaService } from 'src/prisma/prisma.service';
+import { Role } from '@prisma/client';
 
 @Injectable()
 export class AuthService {
@@ -21,10 +22,16 @@ export class AuthService {
   async signUp(user: SignUpAuthDto): Promise<Token & { user: any }> {
     const checkUser = await this.userService.findOne(user.email);
     if (checkUser) {
+      console.log('checkUser', checkUser);
+
       throw new BadRequestException('User with this email already exists');
     }
     const newUser = await this.userService.create(user);
-    const tokens = await this.getTokens(newUser.id, newUser.email);
+    const tokens = await this.getTokens(
+      newUser.id,
+      newUser.email,
+      newUser.role,
+    );
     await this.updateRefreshToken(newUser.id, tokens.refresh_token);
     const upDatedUser = await this.userService.findById(newUser.id);
     const { password, hashedRt, ...result } = upDatedUser;
@@ -34,9 +41,10 @@ export class AuthService {
     };
   }
   async login(user: any): Promise<Token & { user: any }> {
-    const tokens = await this.getTokens(user.id, user.email);
+    const tokens = await this.getTokens(user.id, user.email, user.role);
     await this.updateRefreshToken(user.id, tokens.refresh_token);
     const { password, hashedRt, ...result } = user;
+
     return {
       user: result,
       ...tokens,
@@ -61,7 +69,7 @@ export class AuthService {
     if (!rtMatches) {
       throw new BadRequestException('Access Denied');
     }
-    const tokens = await this.getTokens(user.id, user.email);
+    const tokens = await this.getTokens(user.id, user.email, user.role);
     await this.updateRefreshToken(user.id, tokens.refresh_token);
     const { password, hashedRt, ...result } = user;
     return {
@@ -69,8 +77,8 @@ export class AuthService {
       ...tokens,
     };
   }
-  async getTokens(userId: number, email: string) {
-    const payload = { sub: userId, email };
+  async getTokens(userId: number, email: string, role: Role) {
+    const payload = { sub: userId, email, role };
     const access_token = this.jwtService.sign(payload, {
       secret: process.env.JWT_SECRET,
       expiresIn: '15m',
@@ -89,14 +97,14 @@ export class AuthService {
     if (!user) {
       throw new BadRequestException('User not found');
     }
-    const hashedToken = await this.hashPassword(refreshToken);
+    const hashedToken = await this.hash(refreshToken);
     await this.prisma.user.update({
       where: { id: userId },
       data: { hashedRt: hashedToken },
     });
   }
 
-  async hashPassword(password: string): Promise<string> {
+  async hash(password: string): Promise<string> {
     const saltRounds = 10;
     return await bcrypt.hash(password, saltRounds);
   }

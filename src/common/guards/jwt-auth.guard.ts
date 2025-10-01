@@ -6,17 +6,26 @@ import {
   Injectable,
   UnauthorizedException,
 } from '@nestjs/common';
+import { Reflector } from '@nestjs/core';
 import { AuthGuard } from '@nestjs/passport';
+import { IS_PUBLIC_KEY } from '../decorator/public.decorator';
 
 @Injectable()
 export class JwtAuthGuard extends AuthGuard('jwt') {
-  canActivate(context: ExecutionContext) {
-    // Add logging for debugging
-    const request = context.switchToHttp().getRequest();
-    console.log(`Protected route hit: ${request.url}`);
-    return super.canActivate(context);
+  constructor(private reflector: Reflector) {
+    super();
   }
 
+  canActivate(context: ExecutionContext) {
+    const isPublic = this.reflector.getAllAndOverride<boolean>(IS_PUBLIC_KEY, [
+      context.getHandler(),
+      context.getClass(),
+    ]);
+    if (isPublic) {
+      return true; // skip guard for public routes
+    }
+    return super.canActivate(context);
+  }
   handleRequest(err: any, user: any, info: any) {
     if (info?.name === 'TokenExpiredError') {
       throw new UnauthorizedException('❌ Token expired. Please log in again.');

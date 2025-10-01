@@ -14,66 +14,109 @@ var __param = (this && this.__param) || function (paramIndex, decorator) {
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.AuthController = void 0;
 const common_1 = require("@nestjs/common");
-const local_auth_guard_1 = require("./guards/local-auth.guard");
+const local_auth_guard_1 = require("../common/guards/local-auth.guard");
 const auth_service_1 = require("./auth.service");
-const jwt_auth_guard_1 = require("./guards/jwt-auth.guard");
 const auth_dto_1 = require("./auth.dto");
 const passport_1 = require("@nestjs/passport");
+const prisma_service_1 = require("../prisma/prisma.service");
+const public_decorator_1 = require("../common/decorator/public.decorator");
+const client_1 = require("@prisma/client");
+const roles_decorator_1 = require("../common/decorator/roles.decorator");
 let AuthController = class AuthController {
     authService;
-    constructor(authService) {
+    prisma;
+    constructor(authService, prisma) {
         this.authService = authService;
+        this.prisma = prisma;
     }
-    async signUp(newUser) {
-        return await this.authService.signUp(newUser);
+    async signUp(newUser, res) {
+        const { refresh_token, access_token, user } = await this.authService.signUp(newUser);
+        res.cookie('refresh_token', refresh_token, {
+            httpOnly: true,
+            sameSite: 'strict',
+            path: '/auth/refresh',
+            maxAge: 7 * 24 * 60 * 60 * 1000,
+        });
+        return {
+            user,
+            access_token,
+        };
     }
-    async login(req) {
-        return await this.authService.login(req.user);
+    async login(req, res) {
+        const { refresh_token, access_token, user } = await this.authService.login(req.user);
+        res.cookie('refresh_token', refresh_token, {
+            httpOnly: true,
+            sameSite: 'strict',
+            path: '/auth/refresh',
+            maxAge: 7 * 24 * 60 * 60 * 1000,
+        });
+        return {
+            user,
+            access_token,
+        };
     }
-    async logout(req) {
+    async logout(req, res) {
+        res.clearCookie('refresh_token', { path: '/auth/refresh' });
         await this.authService.logout(req.user.userId);
     }
-    async refreshTokens(req) {
-        return this.authService.refreshTokens(req.user.sub, req.user.refreshToken);
+    async refreshTokens(req, res) {
+        const { refresh_token, access_token, user } = await this.authService.refreshTokens(req.user.sub, req.user.refreshToken);
+        res.cookie('refresh_token', refresh_token, {
+            httpOnly: true,
+            sameSite: 'strict',
+            path: '/auth/refresh',
+            maxAge: 7 * 24 * 60 * 60 * 1000,
+        });
+        return {
+            user,
+            access_token,
+        };
     }
     getProfile(req) {
+        console.log('req.user', req.user);
         return req.user;
     }
 };
 exports.AuthController = AuthController;
 __decorate([
+    (0, public_decorator_1.Public)(),
     (0, common_1.Post)('auth/signup'),
     __param(0, (0, common_1.Body)()),
+    __param(1, (0, common_1.Res)({ passthrough: true })),
     __metadata("design:type", Function),
-    __metadata("design:paramtypes", [auth_dto_1.SignUpAuthDto]),
+    __metadata("design:paramtypes", [auth_dto_1.SignUpAuthDto, Object]),
     __metadata("design:returntype", Promise)
 ], AuthController.prototype, "signUp", null);
 __decorate([
+    (0, public_decorator_1.Public)(),
     (0, common_1.UseGuards)(local_auth_guard_1.LocalAuthGuard),
     (0, common_1.Post)('auth/login'),
     __param(0, (0, common_1.Request)()),
+    __param(1, (0, common_1.Res)({ passthrough: true })),
     __metadata("design:type", Function),
-    __metadata("design:paramtypes", [Object]),
+    __metadata("design:paramtypes", [Object, Object]),
     __metadata("design:returntype", Promise)
 ], AuthController.prototype, "login", null);
 __decorate([
-    (0, common_1.UseGuards)(jwt_auth_guard_1.JwtAuthGuard),
     (0, common_1.Post)('auth/logout'),
     __param(0, (0, common_1.Request)()),
+    __param(1, (0, common_1.Res)({ passthrough: true })),
     __metadata("design:type", Function),
-    __metadata("design:paramtypes", [Object]),
+    __metadata("design:paramtypes", [Object, Object]),
     __metadata("design:returntype", Promise)
 ], AuthController.prototype, "logout", null);
 __decorate([
-    (0, common_1.UseGuards)((0, passport_1.AuthGuard)('refresh')),
+    (0, public_decorator_1.Public)(),
+    (0, common_1.UseGuards)((0, passport_1.AuthGuard)('auth/refresh')),
     (0, common_1.Post)('auth/refresh'),
     __param(0, (0, common_1.Request)()),
+    __param(1, (0, common_1.Res)({ passthrough: true })),
     __metadata("design:type", Function),
-    __metadata("design:paramtypes", [Object]),
+    __metadata("design:paramtypes", [Object, Object]),
     __metadata("design:returntype", Promise)
 ], AuthController.prototype, "refreshTokens", null);
 __decorate([
-    (0, common_1.UseGuards)(jwt_auth_guard_1.JwtAuthGuard),
+    (0, roles_decorator_1.Roles)(client_1.Role.ADMIN),
     (0, common_1.Get)('profile'),
     __param(0, (0, common_1.Request)()),
     __metadata("design:type", Function),
@@ -82,6 +125,7 @@ __decorate([
 ], AuthController.prototype, "getProfile", null);
 exports.AuthController = AuthController = __decorate([
     (0, common_1.Controller)(''),
-    __metadata("design:paramtypes", [auth_service_1.AuthService])
+    __metadata("design:paramtypes", [auth_service_1.AuthService,
+        prisma_service_1.PrismaService])
 ], AuthController);
 //# sourceMappingURL=auth.controller.js.map

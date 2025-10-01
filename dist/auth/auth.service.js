@@ -60,10 +60,11 @@ let AuthService = class AuthService {
     async signUp(user) {
         const checkUser = await this.userService.findOne(user.email);
         if (checkUser) {
+            console.log('checkUser', checkUser);
             throw new common_1.BadRequestException('User with this email already exists');
         }
         const newUser = await this.userService.create(user);
-        const tokens = await this.getTokens(newUser.id, newUser.email);
+        const tokens = await this.getTokens(newUser.id, newUser.email, newUser.role);
         await this.updateRefreshToken(newUser.id, tokens.refresh_token);
         const upDatedUser = await this.userService.findById(newUser.id);
         const { password, hashedRt, ...result } = upDatedUser;
@@ -73,7 +74,7 @@ let AuthService = class AuthService {
         };
     }
     async login(user) {
-        const tokens = await this.getTokens(user.id, user.email);
+        const tokens = await this.getTokens(user.id, user.email, user.role);
         await this.updateRefreshToken(user.id, tokens.refresh_token);
         const { password, hashedRt, ...result } = user;
         return {
@@ -100,7 +101,7 @@ let AuthService = class AuthService {
         if (!rtMatches) {
             throw new common_1.BadRequestException('Access Denied');
         }
-        const tokens = await this.getTokens(user.id, user.email);
+        const tokens = await this.getTokens(user.id, user.email, user.role);
         await this.updateRefreshToken(user.id, tokens.refresh_token);
         const { password, hashedRt, ...result } = user;
         return {
@@ -108,8 +109,8 @@ let AuthService = class AuthService {
             ...tokens,
         };
     }
-    async getTokens(userId, email) {
-        const payload = { sub: userId, email };
+    async getTokens(userId, email, role) {
+        const payload = { sub: userId, email, role };
         const access_token = this.jwtService.sign(payload, {
             secret: process.env.JWT_SECRET,
             expiresIn: '15m',
@@ -128,13 +129,13 @@ let AuthService = class AuthService {
         if (!user) {
             throw new common_1.BadRequestException('User not found');
         }
-        const hashedToken = await this.hashPassword(refreshToken);
+        const hashedToken = await this.hash(refreshToken);
         await this.prisma.user.update({
             where: { id: userId },
             data: { hashedRt: hashedToken },
         });
     }
-    async hashPassword(password) {
+    async hash(password) {
         const saltRounds = 10;
         return await bcrypt.hash(password, saltRounds);
     }

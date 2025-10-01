@@ -3,6 +3,7 @@ import { JwtService } from '@nestjs/jwt';
 import { SignUpAuthDto } from './auth.dto';
 import { Token } from './types/token.types';
 import { PrismaService } from 'src/prisma/prisma.service';
+import { Role } from '@prisma/client';
 export declare class AuthService {
     private readonly userService;
     private jwtService;
@@ -20,11 +21,11 @@ export declare class AuthService {
         refresh_token: string;
         user: any;
     }>;
-    getTokens(userId: number, email: string): Promise<{
+    getTokens(userId: number, email: string, role: Role): Promise<{
         access_token: string;
         refresh_token: string;
     }>;
     updateRefreshToken(userId: string, refreshToken: string): Promise<void>;
-    hashPassword(password: string): Promise<string>;
+    hash(password: string): Promise<string>;
     validateUser(email: string, pass: string): Promise<any>;
 }
